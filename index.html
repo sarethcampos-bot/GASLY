@@ -385,6 +385,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
   </a>
   <div class="nav-spacer"></div>
   <button class="nav-btn" onclick="Pricing.show()">Pricing</button>
+  <button class="nav-btn" onclick="downloadApp()" title="Download GASLY as a file">⬇ Download</button>
   <div id="nav-guest" style="display:flex;gap:8px">
     <button class="nav-btn" onclick="Auth.openLogin()">Log In</button>
     <button class="nav-btn primary" onclick="Auth.openRegister()">Sign Up Free</button>
@@ -1330,6 +1331,14 @@ out center;`;
   init();
   return { setFuel, refresh, reloadStations, search, setLocation, useGPS, updateRadius, restoreLocation };
 })();
+
+function downloadApp() {
+  const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = 'GASLY.html';
+  a.click();
+}
 </script>
 </body>
 </html>
