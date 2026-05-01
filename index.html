@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GASLY — Real-Time California Gas Prices</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --brand:#f97316;--brand2:#fb923c;--brand-glow:rgba(249,115,22,.35);
+  --bg:#080812;--bg2:#0d0d1e;--panel:rgba(9,9,20,.97);--card:rgba(255,255,255,.04);
+  --border:rgba(255,255,255,.08);--border-b:rgba(249,115,22,.3);
+  --text:#f1f5f9;--text2:#94a3b8;--text3:#475569;
+  --cyan:#4fc3f7;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--purple:#a78bfa;
+  --nav-h:54px;--sidebar-w:272px;
+}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+
+/* ── NAVBAR ── */
+#nav{
+  position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:2000;
+  background:rgba(8,8,18,.97);border-bottom:1px solid rgba(249,115,22,.2);
+  display:flex;align-items:center;padding:0 18px;gap:14px;
+}
+.nav-logo{display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0}
+.nav-logo .pump-icon{display:flex;align-items:center;filter:drop-shadow(0 0 6px var(--brand))}
+.nav-logo .wordmark{font-size:20px;font-weight:900;color:var(--brand);letter-spacing:2px}
+.nav-logo .tag{font-size:9px;color:var(--text3);letter-spacing:1px;margin-top:1px}
+.nav-spacer{flex:1}
+.nav-btn{
+  padding:6px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);background:transparent;color:var(--text2);
+  transition:all .18s;white-space:nowrap;
+}
+.nav-btn:hover{border-color:rgba(255,255,255,.22);color:var(--text)}
+.nav-btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+.nav-btn.primary:hover{background:var(--brand2);border-color:var(--brand2)}
+.nav-btn.admin-btn{border-color:rgba(167,139,250,.4);color:var(--purple)}
+.nav-btn.admin-btn:hover{background:rgba(167,139,250,.1)}
+#nav-user-info{font-size:12px;color:var(--text2);border:1px solid var(--border);
+  border-radius:7px;padding:5px 12px;display:flex;align-items:center;gap:6px}
+#nav-user-info .tier-badge{
+  font-size:9px;text-transform:uppercase;letter-spacing:.8px;font-weight:700;
+  padding:1px 6px;border-radius:10px;
+}
+.tb-free{background:rgba(255,255,255,.08);color:var(--text3)}
+.tb-pro{background:rgba(79,195,247,.15);color:var(--cyan)}
+.tb-premium{background:rgba(249,115,22,.15);color:var(--brand)}
+.tb-admin{background:rgba(167,139,250,.2);color:var(--purple)}
+
+/* ── LAYOUT ── */
+#app{display:flex;height:100vh;padding-top:var(--nav-h)}
+
+/* ── SIDEBAR ── */
+#sidebar{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);
+  background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;z-index:800;overflow-y:auto;
+}
+#sidebar::-webkit-scrollbar{width:3px}
+#sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
+.s-head{
+  padding:16px 14px 12px;
+  background:linear-gradient(160deg,#0a1628,#0d1f3c);
+  border-bottom:1px solid rgba(79,195,247,.12);flex-shrink:0;
+}
+.s-head-title{font-size:12px;font-weight:700;color:var(--cyan);letter-spacing:.4px}
+.s-head-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.sec-lbl{
+  padding:10px 14px 5px;font-size:9px;text-transform:uppercase;
+  letter-spacing:1.4px;color:var(--brand);border-top:1px solid rgba(255,255,255,.03);
+}
+.price-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:5px 12px 10px}
+.pc{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:9px;padding:9px 7px;text-align:center;transition:border-color .2s}
+.pc.reg{border-color:rgba(34,197,94,.25)}.pc.mid{border-color:rgba(234,179,8,.25)}
+.pc.prem{border-color:rgba(249,115,22,.25)}.pc.dies{border-color:rgba(167,139,250,.25)}
+.pc .pc-lbl{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:var(--text3)}
+.pc .pc-p{font-size:19px;font-weight:800;margin:3px 0 2px;line-height:1}
+.pc.reg .pc-p{color:var(--green)}.pc.mid .pc-p{color:var(--yellow)}
+.pc.prem .pc-p{color:var(--brand)}.pc.dies .pc-p{color:var(--purple)}
+.pc .pc-d{font-size:9px;color:var(--text3)}.pc .pc-d.up{color:var(--red)}.pc .pc-d.dn{color:var(--green)}
+.fuel-row{display:flex;flex-wrap:wrap;gap:5px;padding:5px 12px 10px}
+.fbtn{
+  padding:5px 12px;border-radius:20px;font-size:11px;
+  border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all .16s;
+}
+.fbtn.active{background:rgba(249,115,22,.15);border-color:var(--brand);color:var(--brand)}
+.fbtn:hover:not(.active){border-color:rgba(255,255,255,.2);color:var(--text)}
+/* location section */
+.loc-section{padding:6px 12px 10px}
+.loc-row{display:flex;gap:6px;margin-bottom:6px}
+.loc-input{
+  flex:1;padding:7px 10px;background:rgba(255,255,255,.05);
+  border:1px solid var(--border);border-radius:6px;color:var(--text);
+  font-size:12px;outline:none;transition:border-color .2s;
+}
+.loc-input:focus{border-color:var(--cyan)}
+.loc-input::placeholder{color:var(--text3)}
+.loc-btn{
+  padding:7px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;
+  background:rgba(79,195,247,.12);border:1px solid rgba(79,195,247,.3);
+  color:var(--cyan);white-space:nowrap;transition:all .16s;
+}
+.loc-btn:hover{background:rgba(79,195,247,.2)}
+.radius-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)}
+.radius-row select{
+  padding:4px 7px;background:rgba(255,255,255,.05);border:1px solid var(--border);
+  border-radius:5px;color:var(--text);font-size:11px;outline:none;cursor:pointer;
+}
+.loc-status{font-size:10px;color:var(--text3);margin-top:4px;min-height:14px}
+.loc-status.active{color:var(--cyan)}
+/* stats */
+.stats{padding:3px 12px 10px}
+.s-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:11px}
+.s-row .sl{color:var(--text3)}.s-row .sv{color:var(--text);font-weight:500}
+/* footer */
+#s-foot{
+  margin-top:auto;padding:9px 12px;border-top:1px solid rgba(255,255,255,.04);
+  display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text3);flex-shrink:0;
+}
+.ref-btn{
+  padding:3px 9px;border-radius:4px;font-size:10px;
+  background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);
+  color:var(--brand);cursor:pointer;transition:background .2s;
+}
+.ref-btn:hover{background:rgba(249,115,22,.2)}
+.ref-btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* ── MAP ── */
+#map-wrap{flex:1;position:relative}
+#map{width:100%;height:100%}
+#searchbar{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:700;
+  display:flex;box-shadow:0 4px 20px rgba(0,0,0,.5);
+}
+#s-inp{
+  width:280px;padding:8px 13px;
+  background:rgba(9,9,20,.95);border:1px solid rgba(249,115,22,.25);
+  border-right:none;border-radius:7px 0 0 7px;color:var(--text);font-size:12px;outline:none;
+  transition:border-color .2s;
+}
+#s-inp:focus{border-color:var(--brand)}
+#s-inp::placeholder{color:var(--text3)}
+#s-btn{
+  padding:8px 12px;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.25);
+  border-radius:0 7px 7px 0;color:var(--brand);cursor:pointer;font-size:13px;transition:background .2s;
+}
+#s-btn:hover{background:rgba(249,115,22,.25)}
+#legend{
+  position:absolute;bottom:26px;right:10px;z-index:700;
+  background:rgba(9,9,20,.92);border:1px solid var(--border);border-radius:9px;padding:11px 13px;font-size:11px;
+}
+#legend .lt{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--brand);margin-bottom:7px}
+.lr{display:flex;align-items:center;gap:7px;margin-bottom:4px;color:#ccc}
+.ld{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+#data-note{
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:700;
+  font-size:9px;color:rgba(100,148,180,.55);background:rgba(9,9,20,.55);
+  padding:2px 10px;border-radius:20px;white-space:nowrap;pointer-events:none;
+}
+/* hotspot pulse ring */
+@keyframes pulse-ring{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.2);opacity:0}}
+.pulse-ring{
+  position:absolute;width:14px;height:14px;border-radius:50%;
+  border:2px solid var(--brand);
+  animation:pulse-ring 1.6s ease-out infinite;
+  pointer-events:none;
+  top:-3px;left:-3px;
+}
+
+/* ── LOADING ── */
+#loading{
+  position:fixed;inset:0;background:rgba(8,8,18,.97);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9000;
+}
+#loading.hidden{display:none}
+.spinner{
+  width:52px;height:52px;border:3px solid rgba(249,115,22,.12);
+  border-top-color:var(--brand);border-radius:50%;
+  animation:spin .85s linear infinite;margin-bottom:20px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#ld-title{font-size:16px;font-weight:700;color:var(--brand)}
+#ld-sub{font-size:11px;color:var(--text3);margin-top:7px;text-align:center;max-width:260px}
+#ld-bar-wrap{width:220px;height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:16px;overflow:hidden}
+#ld-bar{height:100%;background:var(--brand);border-radius:2px;transition:width .3s;width:0%}
+
+/* ── MODAL BASE ── */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  display:flex;align-items:center;justify-content:center;z-index:3000;
+}
+.overlay.hidden{display:none}
+.modal{
+  background:#0a0a1c;border:1px solid rgba(249,115,22,.25);
+  border-radius:14px;padding:28px 26px;width:92%;max-width:420px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+}
+.modal h2{font-size:21px;font-weight:800;color:var(--brand);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.modal .m-sub{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.6}
+.modal .m-sub a{color:var(--cyan)}
+.m-field{margin-bottom:13px}
+.m-field label{display:block;font-size:11px;color:var(--text2);margin-bottom:5px;letter-spacing:.3px}
+.m-field input{
+  width:100%;padding:9px 12px;background:rgba(255,255,255,.05);
+  border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:13px;outline:none;
+  transition:border-color .2s;
+}
+.m-field input:focus{border-color:var(--brand)}
+.m-field input::placeholder{color:var(--text3)}
+.m-btn{
+  width:100%;padding:10px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,#b45309,var(--brand));border:none;color:#fff;
+  margin-top:4px;transition:opacity .2s;
+}
+.m-btn:hover{opacity:.88}
+.m-err{color:var(--red);font-size:11px;margin-top:6px;min-height:16px}
+.m-switch{text-align:center;font-size:12px;color:var(--text3);margin-top:14px}
+.m-switch a{color:var(--brand);cursor:pointer;text-decoration:underline}
+.m-divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* ── PRICING MODAL ── */
+#pricing-modal .modal{max-width:700px;padding:32px}
+.pricing-title{text-align:center;font-size:26px;font-weight:900;color:var(--text);margin-bottom:6px}
+.pricing-title span{color:var(--brand)}
+.pricing-sub{text-align:center;font-size:13px;color:var(--text2);margin-bottom:28px}
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.plan{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:22px 18px;display:flex;flex-direction:column;position:relative;
+  transition:border-color .2s;
+}
+.plan:hover{border-color:rgba(249,115,22,.3)}
+.plan.popular{border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.04)}
+.plan .pop-badge{
+  position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  background:var(--brand);color:#fff;font-size:9px;font-weight:800;
+  letter-spacing:1px;text-transform:uppercase;padding:3px 12px;border-radius:10px;
+  white-space:nowrap;
+}
+.plan .plan-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:3px}
+.plan .plan-price{font-size:28px;font-weight:900;color:var(--brand);line-height:1;margin:8px 0}
+.plan .plan-price span{font-size:12px;color:var(--text3);font-weight:400}
+.plan .plan-price.tbd{color:var(--text2);font-size:18px}
+.plan ul{list-style:none;margin:12px 0 16px;flex:1}
+.plan ul li{font-size:11px;color:var(--text2);padding:4px 0;display:flex;align-items:center;gap:6px}
+.plan ul li .ck{font-size:12px}
+.plan ul li .ck.y{color:var(--green)}.plan ul li .ck.n{color:var(--text3)}
+.plan-cta{
+  padding:9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;
+  text-align:center;border:1px solid var(--border);background:transparent;color:var(--text2);
+  transition:all .2s;
+}
+.plan.popular .plan-cta{background:var(--brand);border-color:var(--brand);color:#fff}
+.plan-cta:hover{border-color:var(--brand);color:var(--brand)}
+.plan.popular .plan-cta:hover{opacity:.85}
+
+/* ── ADMIN PANEL ── */
+#admin-panel{
+  position:fixed;inset:0;background:rgba(8,8,18,.99);z-index:4000;
+  display:flex;flex-direction:column;
+}
+#admin-panel.hidden{display:none}
+#admin-nav{
+  height:var(--nav-h);background:rgba(10,10,22,.98);
+  border-bottom:1px solid rgba(167,139,250,.2);
+  display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0;
+}
+.admin-logo{font-size:16px;font-weight:800;color:var(--purple);letter-spacing:1px}
+.admin-logo span{color:var(--text3);font-size:11px;font-weight:400;margin-left:8px}
+.a-tab{
+  padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;
+  border:1px solid transparent;background:transparent;color:var(--text3);transition:all .16s;
+}
+.a-tab.active{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.3);color:var(--purple)}
+.a-tab:hover:not(.active){color:var(--text2)}
+#admin-close{margin-left:auto;padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);transition:all .16s}
+#admin-close:hover{border-color:var(--red);color:var(--red)}
+#admin-body{flex:1;overflow-y:auto;padding:24px 28px}
+.a-page{display:none}.a-page.active{display:block}
+/* dashboard cards */
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.dash-card{
+  background:var(--card);border:1px solid var(--border);border-radius:11px;padding:18px 16px;
+}
+.dash-card .dc-val{font-size:30px;font-weight:900;color:var(--purple);line-height:1}
+.dash-card .dc-lbl{font-size:11px;color:var(--text3);margin-top:5px}
+/* user table */
+.a-section-title{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px;
+  padding-bottom:8px;border-bottom:1px solid var(--border)}
+.user-table{width:100%;border-collapse:collapse;font-size:12px}
+.user-table th{text-align:left;padding:8px 12px;color:var(--text3);font-size:10px;
+  text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)}
+.user-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--text2)}
+.user-table tr:hover td{background:rgba(255,255,255,.02)}
+.tier-pill{font-size:9px;text-transform:uppercase;letter-spacing:.7px;font-weight:700;padding:2px 8px;border-radius:10px}
+.tp-free{background:rgba(255,255,255,.07);color:var(--text3)}
+.tp-pro{background:rgba(79,195,247,.15);color:var(--cyan)}
+.tp-premium{background:rgba(249,115,22,.15);color:var(--brand)}
+.tp-admin{background:rgba(167,139,250,.2);color:var(--purple)}
+.tbl-action{
+  padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;
+  border:1px solid var(--border);background:transparent;color:var(--text3);
+  transition:all .15s;margin-right:4px;
+}
+.tbl-action:hover{border-color:var(--red);color:var(--red)}
+.tbl-action.promote:hover{border-color:var(--green);color:var(--green)}
+/* pricing admin */
+.price-set-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:500px}
+.ps-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px}
+.ps-card .ps-lbl{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px}
+.ps-card input{
+  width:100%;padding:8px 11px;background:rgba(255,255,255,.05);
+  border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;outline:none;
+  transition:border-color .2s;margin-bottom:10px;
+}
+.ps-card input:focus{border-color:var(--brand)}
+.ps-save{
+  padding:8px 18px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;
+  background:var(--brand);border:none;color:#fff;transition:opacity .2s;
+}
+.ps-save:hover{opacity:.85}
+/* recent users */
+.recent-list{list-style:none}
+.recent-list li{
+  display:flex;align-items:center;gap:10px;padding:8px 0;
+  border-bottom:1px solid rgba(255,255,255,.03);font-size:12px;color:var(--text2);
+}
+.recent-list li .ru-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+
+/* leaflet tooltip */
+.gasly-tip.leaflet-tooltip{
+  background:rgba(9,9,20,.97)!important;border:1px solid rgba(249,115,22,.4)!important;
+  border-radius:5px!important;color:#f1f5f9!important;font-size:11px!important;
+  font-weight:600!important;padding:3px 9px!important;white-space:nowrap!important;
+  box-shadow:0 3px 12px rgba(0,0,0,.55)!important;
+}
+.gasly-tip.leaflet-tooltip::before{border-top-color:rgba(249,115,22,.4)!important}
+
+/* leaflet popup */
+.leaflet-popup-content-wrapper{background:#0a0a1c!important;border:1px solid rgba(249,115,22,.2)!important;border-radius:10px!important;color:var(--text)!important;box-shadow:0 8px 32px rgba(0,0,0,.6)!important}
+.leaflet-popup-tip{background:#0a0a1c!important}
+.leaflet-popup-content{margin:13px 15px!important;min-width:195px}
+.pop-name{font-size:13px;font-weight:700;color:var(--brand);margin-bottom:3px}
+.pop-brand{display:inline-block;background:rgba(255,255,255,.06);border-radius:4px;padding:1px 7px;font-size:9px;color:var(--text3);margin-bottom:9px;text-transform:uppercase;letter-spacing:.7px}
+.pop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.pop-cell{background:rgba(255,255,255,.04);border-radius:6px;padding:6px 5px;text-align:center}
+.pop-cell .pl{font-size:8px;text-transform:uppercase;letter-spacing:.7px;color:var(--text3)}
+.pop-cell .pv{font-size:16px;font-weight:800;margin-top:2px}
+.pop-cell.reg .pv{color:var(--green)}.pop-cell.prem .pv{color:var(--brand)}.pop-cell.dies .pv{color:var(--purple)}
+.pop-addr{font-size:10px;color:var(--text3);margin-top:8px}
+.pop-hot{font-size:10px;color:var(--brand);margin-top:4px;font-weight:600}
+.pop-area{font-size:10px;color:var(--cyan);margin-top:2px;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav id="nav">
+  <a class="nav-logo" href="#">
+    <span class="pump-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 26" width="26" height="26">
+        <!-- body -->
+        <rect x="1" y="6" width="13" height="19" rx="2.5" fill="#f97316"/>
+        <!-- display screen -->
+        <rect x="3.5" y="9.5" width="8" height="5" rx="1.2" fill="rgba(0,0,0,.32)"/>
+        <!-- price digits on screen -->
+        <rect x="5" y="10.5" width="1.5" height="3" rx=".4" fill="rgba(255,255,255,.55)"/>
+        <rect x="7.5" y="10.5" width="1.5" height="3" rx=".4" fill="rgba(255,255,255,.55)"/>
+        <rect x="10" y="10.5" width="1.5" height="3" rx=".4" fill="rgba(255,255,255,.55)"/>
+        <!-- top nozzle holder / cap -->
+        <rect x="5" y="2" width="5" height="5" rx="1.5" fill="#f97316"/>
+        <!-- hose -->
+        <path d="M14 11 Q20 11 20 17 L20 21" stroke="#f97316" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- nozzle head -->
+        <rect x="17" y="20" width="5" height="3" rx="1.5" fill="#f97316"/>
+        <!-- nozzle tip highlight -->
+        <rect x="21" y="20.5" width="1.5" height="2" rx=".5" fill="rgba(255,255,255,.4)"/>
+      </svg>
+    </span>
+    <div><div class="wordmark">GASLY</div><div class="tag">TRACK EVERY DROP</div></div>
+  </a>
+  <div class="nav-spacer"></div>
+  <button class="nav-btn" onclick="Pricing.show()">Pricing</button>
+  <div id="nav-guest" style="display:flex;gap:8px">
+    <button class="nav-btn" onclick="Auth.openLogin()">Log In</button>
+    <button class="nav-btn primary" onclick="Auth.openRegister()">Sign Up Free</button>
+  </div>
+  <div id="nav-user" style="display:none;align-items:center;gap:8px">
+    <button class="nav-btn admin-btn" id="nav-admin-btn" style="display:none" onclick="Admin.show()">⚙ Admin</button>
+    <div id="nav-user-info">
+      <span id="nav-name"></span>
+      <span class="tier-badge" id="nav-tier"></span>
+    </div>
+    <button class="nav-btn" onclick="Auth.logout()">Logout</button>
+  </div>
+</nav>
+
+<!-- LOGIN MODAL -->
+<div class="overlay hidden" id="login-overlay">
+  <div class="modal">
+    <h2><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 26" width="22" height="22" style="vertical-align:middle;margin-right:6px"><rect x="1" y="6" width="13" height="19" rx="2.5" fill="#f97316"/><rect x="3.5" y="9.5" width="8" height="5" rx="1.2" fill="rgba(0,0,0,.32)"/><rect x="5" y="2" width="5" height="5" rx="1.5" fill="#f97316"/><path d="M14 11 Q20 11 20 17 L20 21" stroke="#f97316" stroke-width="2.5" fill="none" stroke-linecap="round"/><rect x="17" y="20" width="5" height="3" rx="1.5" fill="#f97316"/></svg>Welcome Back</h2>
+    <p class="m-sub">Log in to access your location settings and saved preferences.</p>
+    <div class="m-field"><label>Email</label><input type="email" id="li-email" placeholder="you@example.com"/></div>
+    <div class="m-field"><label>Password</label><input type="password" id="li-pass" placeholder="••••••••"/></div>
+    <div class="m-err" id="li-err"></div>
+    <button class="m-btn" onclick="Auth.login()">Log In</button>
+    <div class="m-switch">Don't have an account? <a onclick="Auth.openRegister()">Sign up free</a></div>
+    <hr class="m-divider"/>
+    <p style="font-size:11px;color:var(--text3);text-align:center">Or continue without an account to view the map.</p>
+    <button class="nav-btn" style="width:100%;margin-top:8px;padding:9px" onclick="Auth.closeAll()">Continue as Guest</button>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="overlay hidden" id="reg-overlay">
+  <div class="modal">
+    <h2><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 26" width="22" height="22" style="vertical-align:middle;margin-right:6px"><rect x="1" y="6" width="13" height="19" rx="2.5" fill="#f97316"/><rect x="3.5" y="9.5" width="8" height="5" rx="1.2" fill="rgba(0,0,0,.32)"/><rect x="5" y="2" width="5" height="5" rx="1.5" fill="#f97316"/><path d="M14 11 Q20 11 20 17 L20 21" stroke="#f97316" stroke-width="2.5" fill="none" stroke-linecap="round"/><rect x="17" y="20" width="5" height="3" rx="1.5" fill="#f97316"/></svg>Join GASLY</h2>
+    <p class="m-sub">Create a free account to save your location, track your area, and unlock Pro features.</p>
+    <div class="m-field"><label>Full Name</label><input type="text" id="rg-name" placeholder="Your name"/></div>
+    <div class="m-field"><label>Email</label><input type="email" id="rg-email" placeholder="you@example.com"/></div>
+    <div class="m-field"><label>Password</label><input type="password" id="rg-pass" placeholder="At least 6 characters"/></div>
+    <div class="m-field"><label>Confirm Password</label><input type="password" id="rg-pass2" placeholder="Repeat password"/></div>
+    <div class="m-err" id="rg-err"></div>
+    <button class="m-btn" onclick="Auth.register()">Create Account</button>
+    <div class="m-switch">Already have an account? <a onclick="Auth.openLogin()">Log in</a></div>
+  </div>
+</div>
+
+<!-- PRICING MODAL -->
+<div class="overlay hidden" id="pricing-modal">
+  <div class="modal" style="max-width:680px;padding:32px 28px">
+    <div style="text-align:right;margin-bottom:8px">
+      <button onclick="Pricing.hide()" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="pricing-title"><span>GASLY</span> Plans</div>
+    <div class="pricing-sub">Choose the plan that fits how you track gas.</div>
+    <div class="plan-grid">
+      <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0<span>/mo</span></div>
+        <ul>
+          <li><span class="ck y">✓</span> California gas map</li>
+          <li><span class="ck y">✓</span> State average prices</li>
+          <li><span class="ck y">✓</span> All station locations</li>
+          <li><span class="ck y">✓</span> Station popups</li>
+          <li><span class="ck n">✗</span> My Area radius</li>
+          <li><span class="ck n">✗</span> Hotspot indicators</li>
+          <li><span class="ck n">✗</span> Price alerts</li>
+        </ul>
+        <div class="plan-cta" onclick="Pricing.hide()">Current Plan</div>
+      </div>
+      <div class="plan popular">
+        <div class="pop-badge">Most Popular</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price tbd" id="pro-price-display">Price TBD<span>/mo</span></div>
+        <ul>
+          <li><span class="ck y">✓</span> Everything in Free</li>
+          <li><span class="ck y">✓</span> My Area radius view</li>
+          <li><span class="ck y">✓</span> Hotspot indicators 🔥</li>
+          <li><span class="ck y">✓</span> GPS location tracking</li>
+          <li><span class="ck y">✓</span> Price alerts (soon)</li>
+          <li><span class="ck n">✗</span> Multi-location tracking</li>
+          <li><span class="ck n">✗</span> Price history charts</li>
+        </ul>
+        <div class="plan-cta" onclick="Pricing.upgrade('pro')">Join Waitlist</div>
+      </div>
+      <div class="plan">
+        <div class="plan-name">Premium</div>
+        <div class="plan-price tbd" id="prem-price-display">Price TBD<span>/mo</span></div>
+        <ul>
+          <li><span class="ck y">✓</span> Everything in Pro</li>
+          <li><span class="ck y">✓</span> Price history charts</li>
+          <li><span class="ck y">✓</span> Multi-location tracking</li>
+          <li><span class="ck y">✓</span> Data export (CSV)</li>
+          <li><span class="ck y">✓</span> Priority support</li>
+          <li><span class="ck y">✓</span> Early feature access</li>
+          <li><span class="ck y">✓</span> No ads (future)</li>
+        </ul>
+        <div class="plan-cta" onclick="Pricing.upgrade('premium')">Join Waitlist</div>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:10px;color:var(--text3);margin-top:16px">Prices set by admin · All features currently available during beta</p>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="admin-panel" class="hidden">
+  <div id="admin-nav">
+    <div class="admin-logo">GASLY <span>Admin Console</span></div>
+    <button class="a-tab active" onclick="Admin.tab('dash',this)">Dashboard</button>
+    <button class="a-tab" onclick="Admin.tab('users',this)">Users</button>
+    <button class="a-tab" onclick="Admin.tab('pricing',this)">Pricing</button>
+    <button id="admin-close" onclick="Admin.hide()">✕ Close</button>
+  </div>
+  <div id="admin-body">
+    <!-- Dashboard -->
+    <div class="a-page active" id="a-dash">
+      <div class="dash-grid" id="a-dash-cards"></div>
+      <div class="a-section-title">Recent Sign-Ups</div>
+      <ul class="recent-list" id="a-recent"></ul>
+    </div>
+    <!-- Users -->
+    <div class="a-page" id="a-users">
+      <div class="a-section-title">All Users</div>
+      <table class="user-table">
+        <thead><tr>
+          <th>Name</th><th>Email</th><th>Tier</th><th>Joined</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="a-user-tbody"></tbody>
+      </table>
+    </div>
+    <!-- Pricing -->
+    <div class="a-page" id="a-pricing">
+      <div class="a-section-title">Set Subscription Prices</div>
+      <div class="price-set-grid">
+        <div class="ps-card">
+          <div class="ps-lbl">🔵 Pro Plan ($/month)</div>
+          <input type="number" id="ps-pro" placeholder="e.g. 4.99" step="0.01" min="0"/>
+          <button class="ps-save" onclick="Admin.savePrice('pro')">Save Pro Price</button>
+        </div>
+        <div class="ps-card">
+          <div class="ps-lbl">🟠 Premium Plan ($/month)</div>
+          <input type="number" id="ps-prem" placeholder="e.g. 9.99" step="0.01" min="0"/>
+          <button class="ps-save" onclick="Admin.savePrice('prem')">Save Premium Price</button>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin-top:16px">Prices update live on the public Pricing page.</p>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading" class="hidden">
+  <div class="spinner"></div>
+  <div id="ld-title">Loading GASLY</div>
+  <div id="ld-sub">Initializing…</div>
+  <div id="ld-bar-wrap"><div id="ld-bar"></div></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div id="sidebar">
+    <div class="s-head">
+      <div class="s-head-title" style="display:flex;align-items:center;gap:7px">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 26" width="18" height="18" style="flex-shrink:0">
+          <rect x="1" y="6" width="13" height="19" rx="2.5" fill="#f97316"/>
+          <rect x="3.5" y="9.5" width="8" height="5" rx="1.2" fill="rgba(0,0,0,.32)"/>
+          <rect x="5" y="2" width="5" height="5" rx="1.5" fill="#f97316"/>
+          <path d="M14 11 Q20 11 20 17 L20 21" stroke="#f97316" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <rect x="17" y="20" width="5" height="3" rx="1.5" fill="#f97316"/>
+        </svg>
+        GASLY — California Gas Tracker
+      </div>
+      <div class="s-head-sub">EIA weekly prices · OpenStreetMap stations</div>
+    </div>
+
+    <div class="sec-lbl">California Avg ($/gal)</div>
+    <div class="price-grid">
+      <div class="pc reg"><div class="pc-lbl">Regular</div><div class="pc-p" id="p-reg">—</div><div class="pc-d" id="d-reg">—</div></div>
+      <div class="pc mid"><div class="pc-lbl">Midgrade</div><div class="pc-p" id="p-mid">—</div><div class="pc-d" id="d-mid">—</div></div>
+      <div class="pc prem"><div class="pc-lbl">Premium</div><div class="pc-p" id="p-prem">—</div><div class="pc-d" id="d-prem">—</div></div>
+      <div class="pc dies"><div class="pc-lbl">Diesel</div><div class="pc-p" id="p-dies">—</div><div class="pc-d" id="d-dies">—</div></div>
+    </div>
+
+    <div class="sec-lbl">Map Fuel Type</div>
+    <div class="fuel-row">
+      <button class="fbtn active" onclick="GasMap.setFuel('regular',this)">Regular</button>
+      <button class="fbtn" onclick="GasMap.setFuel('midgrade',this)">Midgrade</button>
+      <button class="fbtn" onclick="GasMap.setFuel('premium',this)">Premium</button>
+      <button class="fbtn" onclick="GasMap.setFuel('diesel',this)">Diesel</button>
+    </div>
+
+    <div class="sec-lbl">📍 My Location</div>
+    <div class="loc-section">
+      <div class="loc-row">
+        <input class="loc-input" id="loc-input" placeholder="City, address, or zip…" onkeydown="if(event.key==='Enter')GasMap.setLocation()"/>
+        <button class="loc-btn" onclick="GasMap.setLocation()">Go</button>
+        <button class="loc-btn" onclick="GasMap.useGPS()" title="Use my GPS location">GPS</button>
+      </div>
+      <div class="radius-row">
+        <span>Radius:</span>
+        <select id="radius-sel" onchange="GasMap.updateRadius()">
+          <option value="5">5 miles</option>
+          <option value="10" selected>10 miles</option>
+          <option value="25">25 miles</option>
+          <option value="50">50 miles</option>
+        </select>
+      </div>
+      <div class="loc-status" id="loc-status">No location set</div>
+    </div>
+
+    <div class="sec-lbl">Statistics</div>
+    <div class="stats">
+      <div class="s-row"><span class="sl">Stations loaded</span><span class="sv" id="st-count">—</span></div>
+      <div class="s-row"><span class="sl">In my area</span><span class="sv" id="st-area">—</span></div>
+      <div class="s-row"><span class="sl">Hotspots</span><span class="sv" id="st-hot">—</span></div>
+      <div class="s-row"><span class="sl">Cheapest (map)</span><span class="sv" id="st-cheap">—</span></div>
+      <div class="s-row"><span class="sl">Most expensive</span><span class="sv" id="st-dear">—</span></div>
+      <div class="s-row"><span class="sl">Data source</span><span class="sv" id="st-src">EIA + OSM</span></div>
+      <div class="s-row"><span class="sl">OSM coverage</span><span class="sv" id="st-tiles">—</span></div>
+    </div>
+
+    <div id="s-foot">
+      <span id="updated">Not updated</span>
+      <div style="display:flex;gap:5px">
+        <button class="ref-btn" id="ref-btn" onclick="GasMap.refresh()">↻ Prices</button>
+        <button class="ref-btn" onclick="GasMap.reloadStations()">⟳ Stations</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="searchbar">
+      <input id="s-inp" type="text" placeholder="Search city or address in California…" onkeydown="if(event.key==='Enter')GasMap.search()"/>
+      <button id="s-btn" onclick="GasMap.search()">🔍</button>
+    </div>
+    <div id="legend">
+      <div class="lt">Price / Gallon</div>
+      <div class="lr"><div class="ld" style="background:var(--green)"></div>Lowest prices</div>
+      <div class="lr"><div class="ld" style="background:var(--brand)"></div>Mid-range prices</div>
+      <div class="lr"><div class="ld" style="background:var(--red)"></div>Highest prices</div>
+      <div style="border-top:1px solid var(--border);margin:7px 0 5px"></div>
+      <div class="lr"><span style="font-size:12px">🔥</span>Hotspot station</div>
+      <div class="lr"><span style="font-size:12px">📍</span>In your area</div>
+    </div>
+    <div id="data-note">Locations © OpenStreetMap · Prices © EIA (weekly CA avg ± station variation)</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+'use strict';
+const ADMIN_EMAIL = 'sareth.campos@sjsu.edu';
+
+// ── UTIL ────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str + ':gasly:salt2026'));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function setLoad(msg, pct) {
+  $('ld-sub').textContent = msg;
+  $('ld-bar').style.width = pct + '%';
+}
+
+// ── AUTH ────────────────────────────────────────────────
+const Auth = (() => {
+  let users   = JSON.parse(localStorage.getItem('gasly_users')   || '[]');
+  let session = JSON.parse(localStorage.getItem('gasly_session') || 'null');
+
+  function save() { localStorage.setItem('gasly_users', JSON.stringify(users)); }
+  function saveSession(s) { session = s; localStorage.setItem('gasly_session', JSON.stringify(s)); }
+
+  function updateNav() {
+    if (session) {
+      $('nav-guest').style.display = 'none';
+      $('nav-user').style.display  = 'flex';
+      $('nav-name').textContent    = session.name.split(' ')[0];
+      const isAdminUser = isAdmin();
+      const tier = isAdminUser ? 'admin' : (session.tier || 'free');
+      const badges = { free:'tb-free', pro:'tb-pro', premium:'tb-premium', admin:'tb-admin' };
+      const labels = { free:'Free', pro:'Pro', premium:'Premium', admin:'Admin' };
+      const nb = $('nav-tier');
+      nb.className = 'tier-badge ' + (badges[tier]||'tb-free');
+      nb.textContent = labels[tier] || 'Free';
+      $('nav-admin-btn').style.display = isAdminUser ? 'block' : 'none';
+    } else {
+      $('nav-guest').style.display = 'flex';
+      $('nav-user').style.display  = 'none';
+    }
+  }
+
+  async function register() {
+    const name  = $('rg-name').value.trim();
+    const email = $('rg-email').value.trim().toLowerCase();
+    const pass  = $('rg-pass').value;
+    const pass2 = $('rg-pass2').value;
+    const err   = $('rg-err');
+    err.textContent = '';
+    if (!name || !email || !pass) { err.textContent = 'All fields required.'; return; }
+    if (pass.length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
+    if (pass !== pass2) { err.textContent = 'Passwords do not match.'; return; }
+    if (users.find(u => u.email === email)) { err.textContent = 'Email already registered.'; return; }
+    const hash = await sha256(pass);
+    const isAdm = email === ADMIN_EMAIL || name.toLowerCase() === 'sareth';
+    const user = { id: Date.now(), name, email, hash, tier: isAdm ? 'admin' : 'free', createdAt: new Date().toISOString(), location: null };
+    users.push(user);
+    save();
+    const s = { id: user.id, name, email, tier: user.tier };
+    saveSession(s);
+    hide('reg-overlay');
+    updateNav();
+    ['rg-name','rg-email','rg-pass','rg-pass2'].forEach(i => $(i).value = '');
+  }
+
+  async function login() {
+    const email = $('li-email').value.trim().toLowerCase();
+    const pass  = $('li-pass').value;
+    const err   = $('li-err');
+    err.textContent = '';
+    if (!email || !pass) { err.textContent = 'Email and password required.'; return; }
+    const hash = await sha256(pass);
+    const user = users.find(u => u.email === email && u.hash === hash);
+    if (!user) { err.textContent = 'Invalid email or password.'; return; }
+    const s = { id: user.id, name: user.name, email: user.email, tier: user.tier };
+    saveSession(s);
+    hide('login-overlay');
+    updateNav();
+    ['li-email','li-pass'].forEach(i => $(i).value = '');
+    // restore saved location
+    if (user.location) GasMap.restoreLocation(user.location);
+  }
+
+  function logout() {
+    session = null;
+    localStorage.removeItem('gasly_session');
+    updateNav();
+  }
+
+  function getUsers()   { return users; }
+  function getSession() { return session; }
+  function isAdmin()    { return session?.email === ADMIN_EMAIL || session?.name?.toLowerCase() === 'sareth'; }
+
+  function deleteUser(id) {
+    users = users.filter(u => u.id !== id);
+    save();
+  }
+
+  function setTier(id, tier) {
+    const u = users.find(u => u.id === id);
+    if (u) { u.tier = tier; save(); }
+    if (session?.id === id) { session.tier = tier; saveSession(session); updateNav(); }
+  }
+
+  function saveLocation(loc) {
+    const u = users.find(u => u.id === session?.id);
+    if (u) { u.location = loc; save(); }
+  }
+
+  // Promote any existing "sareth" account to admin on load
+  (function migrateAdmin() {
+    let changed = false;
+    users.forEach(u => {
+      if (u.name.toLowerCase() === 'sareth' && u.tier !== 'admin') {
+        u.tier = 'admin'; changed = true;
+      }
+    });
+    if (changed) {
+      save();
+      if (session && session.name?.toLowerCase() === 'sareth') {
+        session.tier = 'admin';
+        saveSession(session);
+      }
+    }
+  })();
+
+  updateNav();
+  return { register, login, logout, openLogin:()=>{hide('reg-overlay');show('login-overlay')}, openRegister:()=>{hide('login-overlay');show('reg-overlay')}, closeAll:()=>{hide('login-overlay');hide('reg-overlay')}, getUsers, getSession, isAdmin, deleteUser, setTier, saveLocation, updateNav };
+})();
+
+// ── PRICING ─────────────────────────────────────────────
+const Pricing = (() => {
+  function getPrices() { return JSON.parse(localStorage.getItem('gasly_prices') || '{"pro":null,"prem":null}'); }
+
+  function refreshDisplay() {
+    const p = getPrices();
+    $('pro-price-display').innerHTML  = p.pro  ? `$${p.pro}<span>/mo</span>` : `Price TBD<span>/mo</span>`;
+    $('prem-price-display').innerHTML = p.prem ? `$${p.prem}<span>/mo</span>` : `Price TBD<span>/mo</span>`;
+  }
+
+  function show() { refreshDisplay(); show('pricing-modal'); }
+  function hide() { hide('pricing-modal'); }
+
+  function upgrade(tier) {
+    const s = Auth.getSession();
+    if (!s) { hide('pricing-modal'); Auth.openRegister(); return; }
+    alert(`Thanks for your interest in GASLY ${tier.charAt(0).toUpperCase()+tier.slice(1)}! Stripe payments coming soon. You're on the waitlist.`);
+  }
+
+  return { show, hide: ()=>hide('pricing-modal'), upgrade, getPrices };
+})();
+
+// ── ADMIN ────────────────────────────────────────────────
+const Admin = (() => {
+  function show() {
+    if (!Auth.isAdmin()) return;
+    renderDash();
+    renderUsers();
+    loadPricingInputs();
+    show('admin-panel');
+  }
+  function hide() { hide('admin-panel'); }
+
+  function tab(name, btn) {
+    document.querySelectorAll('.a-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.a-page').forEach(p => p.classList.remove('active'));
+    $('a-' + name).classList.add('active');
+  }
+
+  function renderDash() {
+    const users = Auth.getUsers();
+    const tiers = { free:0, pro:0, premium:0, admin:0 };
+    users.forEach(u => { tiers[u.tier] = (tiers[u.tier]||0) + 1; });
+    $('a-dash-cards').innerHTML = [
+      { val: users.length, lbl: 'Total Users' },
+      { val: tiers.free||0, lbl: 'Free Users' },
+      { val: (tiers.pro||0)+(tiers.premium||0), lbl: 'Subscribers' },
+      { val: tiers.admin||0, lbl: 'Admins' }
+    ].map(c=>`<div class="dash-card"><div class="dc-val">${c.val}</div><div class="dc-lbl">${c.lbl}</div></div>`).join('');
+
+    const recent = [...users].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
+    $('a-recent').innerHTML = recent.map(u=>`
+      <li>
+        <div class="ru-dot"></div>
+        <strong style="color:var(--text)">${esc(u.name)}</strong>
+        <span style="color:var(--text3)">${esc(u.email)}</span>
+        <span class="tier-pill tp-${u.tier}">${u.tier}</span>
+        <span style="margin-left:auto;color:var(--text3)">${new Date(u.createdAt).toLocaleDateString()}</span>
+      </li>`).join('');
+  }
+
+  function renderUsers() {
+    const users = Auth.getUsers();
+    $('a-user-tbody').innerHTML = users.map(u => `
+      <tr>
+        <td>${esc(u.name)}</td>
+        <td>${esc(u.email)}</td>
+        <td><span class="tier-pill tp-${u.tier}">${u.tier}</span></td>
+        <td>${new Date(u.createdAt).toLocaleDateString()}</td>
+        <td>
+          <button class="tbl-action promote" onclick="Admin.cycleTier(${u.id})">Change Tier</button>
+          <button class="tbl-action" onclick="Admin.removeUser(${u.id})">Remove</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  function cycleTier(id) {
+    const users = Auth.getUsers();
+    const u = users.find(x=>x.id===id);
+    if (!u) return;
+    const cycle = { free:'pro', pro:'premium', premium:'free', admin:'admin' };
+    Auth.setTier(id, cycle[u.tier] || 'free');
+    renderUsers();
+    renderDash();
+  }
+
+  function removeUser(id) {
+    if (!confirm('Remove this user?')) return;
+    Auth.deleteUser(id);
+    renderUsers();
+    renderDash();
+  }
+
+  function loadPricingInputs() {
+    const p = Pricing.getPrices();
+    if (p.pro)  $('ps-pro').value  = p.pro;
+    if (p.prem) $('ps-prem').value = p.prem;
+  }
+
+  function savePrice(which) {
+    const val = parseFloat($(which==='pro'?'ps-pro':'ps-prem').value);
+    if (isNaN(val) || val < 0) { alert('Enter a valid price.'); return; }
+    const p = Pricing.getPrices();
+    p[which] = val.toFixed(2);
+    localStorage.setItem('gasly_prices', JSON.stringify(p));
+    alert(`${which === 'pro' ? 'Pro' : 'Premium'} price set to $${val.toFixed(2)}/mo`);
+  }
+
+  return { show, hide:()=>hide('admin-panel'), tab, cycleTier, removeUser, savePrice };
+})();
+
+// ── GAS MAP ──────────────────────────────────────────────
+const GasMap = (() => {
+  let map, clusters, areaCircle, areaMarker;
+  let stations = [];
+  let eiaKey   = localStorage.getItem('eia_key') || '';
+  let fuel     = 'regular';
+  let prices   = { regular:4.45, midgrade:4.67, premium:4.89, diesel:4.52 };
+  let prev     = { ...prices };
+  let userLoc  = null;
+  let radius   = 10;
+
+  const PRODUCTS = { EPM0R:'regular', EPM0M:'midgrade', EPM0P:'premium', EPMD:'diesel', EPD2D:'diesel' };
+  const HOT_BRANDS = new Set(['costco','walmart','sam\'s club','samsclub','costco gasoline','bj\'s']);
+
+  // ── boot ─
+  function init() {
+    const saved = localStorage.getItem('eia_key');
+    if (saved) eiaKey = saved;
+    show('loading'); setLoad('Initializing map…', 8);
+    initMap();
+    startFlow();
+  }
+
+  async function startFlow() {
+    setLoad('Fetching EIA price data…', 18);
+    await fetchEIA();
+    renderCards();
+    setLoad('Querying California gas stations (15–30 s)…', 32);
+    await fetchStations();
+    hide('loading');
+    setInterval(autoRefresh, 5 * 60 * 1000);
+  }
+
+  // ── map init ─
+  function initMap() {
+    map = L.map('map', { center:[36.78,-119.42], zoom:6 });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution:'&copy; <a href="https://openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains:'abcd', maxZoom:20
+    }).addTo(map);
+
+    clusters = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      iconCreateFunction(c) {
+        const n = c.getChildCount();
+        const sz = n > 500 ? 44 : n > 100 ? 38 : 32;
+        return L.divIcon({
+          html:`<div style="width:${sz}px;height:${sz}px;background:rgba(249,115,22,.85);border:2px solid rgba(255,255,255,.7);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:white;font-size:${sz>38?13:11}px">${n>999?Math.round(n/1000)+'k':n}</div>`,
+          className:'', iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
+        });
+      }
+    });
+    map.addLayer(clusters);
+  }
+
+  // ── EIA ─
+  async function fetchEIA() {
+    if (!eiaKey) { $('st-src').textContent = 'Simulated + OSM'; return; }
+    $('st-src').textContent = 'EIA + OSM';
+    try {
+      const p = new URLSearchParams({
+        api_key:eiaKey, frequency:'weekly', 'data[0]':'value',
+        'facets[duoarea][]':'SCA', 'facets[process][]':'PTE',
+        'sort[0][column]':'period', 'sort[0][direction]':'desc', length:'20'
+      });
+      const res  = await fetch(`https://api.eia.gov/v2/petroleum/pri/gnd/data/?${p}`);
+      if (!res.ok) throw 0;
+      const json = await res.json();
+      const rows = json?.response?.data ?? [];
+      prev = { ...prices };
+      const seen = {};
+      for (const r of rows) {
+        const k = PRODUCTS[r.product];
+        if (k && !seen[k] && r.value != null) { prices[k] = parseFloat(r.value); seen[k] = true; }
+        if (Object.keys(seen).length === 4) break;
+      }
+    } catch { $('st-src').textContent = 'Simulated + OSM'; }
+  }
+
+  function renderCards() {
+    [['reg','regular'],['mid','midgrade'],['prem','premium'],['dies','diesel']].forEach(([id,k]) => {
+      $('p-'+id).textContent = `$${prices[k].toFixed(2)}`;
+      const d = prices[k] - (prev[k] ?? prices[k]);
+      const el = $('d-'+id); el.className='pc-d';
+      if (Math.abs(d)<.0005) { el.textContent='No change'; }
+      else if (d>0) { el.textContent=`▲ +$${d.toFixed(3)}`; el.classList.add('up'); }
+      else { el.textContent=`▼ $${d.toFixed(3)}`; el.classList.add('dn'); }
+    });
+    $('updated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  }
+
+  // ── stations ─
+  // California split into 6 tiles so each Overpass request stays under limits.
+  // Two fallback servers tried per tile so a single server outage doesn't break the app.
+  const OVERPASS_SERVERS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
+  const CA_TILES = [
+    { name:'Northern CA (coast)',   bbox:[38.5,-124.5,42.1,-121.0] },
+    { name:'Northern CA (inland)',  bbox:[38.5,-121.0,42.1,-114.1] },
+    { name:'Central CA (coast)',    bbox:[35.0,-124.5,38.5,-120.0] },
+    { name:'Central CA (valley)',   bbox:[35.0,-120.0,38.5,-114.1] },
+    { name:'Southern CA (coast)',   bbox:[32.5,-124.5,35.0,-117.5] },
+    { name:'Southern CA (inland)',  bbox:[32.5,-117.5,35.0,-114.1] },
+  ];
+
+  function buildQuery(s, w, n, e) {
+    // Queries nodes, ways, AND relations; also catches shop=gas/fuel variants
+    return `[out:json][timeout:60][maxsize:67108864];
+(
+  node["amenity"="fuel"](${s},${w},${n},${e});
+  way["amenity"="fuel"](${s},${w},${n},${e});
+  relation["amenity"="fuel"](${s},${w},${n},${e});
+  node["shop"="gas"](${s},${w},${n},${e});
+  node["shop"="fuel"](${s},${w},${n},${e});
+  way["shop"="gas"](${s},${w},${n},${e});
+  way["shop"="fuel"](${s},${w},${n},${e});
+);
+out center;`;
+  }
+
+  async function fetchTile(bbox, tileLabel) {
+    const [s, w, n, e] = bbox;
+    const body = `data=${encodeURIComponent(buildQuery(s, w, n, e))}`;
+    const headers = { 'Content-Type':'application/x-www-form-urlencoded' };
+    for (const server of OVERPASS_SERVERS) {
+      try {
+        const res = await fetch(server, { method:'POST', headers, body });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        return json.elements || [];
+      } catch (err) {
+        console.warn(`Tile "${tileLabel}" failed on ${server}:`, err.message);
+      }
+    }
+    console.error(`All servers failed for tile: ${tileLabel}`);
+    return [];
+  }
+
+  async function fetchStations() {
+    const seen = new Map(); // id → element (deduplicates overlapping tile edges)
+    let loaded = 0;
+
+    for (let i = 0; i < CA_TILES.length; i++) {
+      const { name, bbox } = CA_TILES[i];
+      const pct = Math.round(32 + (i / CA_TILES.length) * 30);
+      setLoad(`Loading ${name} (${i+1}/${CA_TILES.length})…`, pct);
+
+      const elements = await fetchTile(bbox, name);
+      elements.forEach(e => { if (!seen.has(e.id)) seen.set(e.id, e); });
+      loaded = seen.size;
+
+      // Update sidebar count progressively so the user sees progress
+      $('st-count').textContent = loaded.toLocaleString() + '…';
+    }
+
+    stations = Array.from(seen.values()).map(e => ({
+      id:   e.id,
+      lat:  e.lat  ?? e.center?.lat,
+      lon:  e.lon  ?? e.center?.lon,
+      tags: e.tags ?? {},
+    })).filter(s => s.lat && s.lon);
+
+    if (!stations.length) {
+      setLoad('No stations loaded — check your connection and try Reload Stations.', 0);
+      await sleep(3000);
+      return;
+    }
+
+    $('st-tiles').textContent = `${CA_TILES.length}/${CA_TILES.length} tiles`;
+    setLoad(`Rendering ${stations.length.toLocaleString()} stations on map…`, 65);
+    await renderMarkers();
+  }
+
+  async function reloadStations() {
+    stations = [];
+    show('loading'); setLoad('Reloading all stations…', 10);
+    await fetchStations();
+    hide('loading');
+  }
+
+  // ── markers ─
+  async function renderMarkers() {
+    clusters.clearLayers();
+    const base = prices[fuel];
+    const all = [];
+    let inArea = 0, hotCount = 0;
+    const BATCH = 500;
+    let i = 0;
+    while (i < stations.length) {
+      const end = Math.min(i + BATCH, stations.length);
+      setLoad(`Placing markers: ${i.toLocaleString()} / ${stations.length.toLocaleString()}…`, Math.round(65+(i/stations.length)*33));
+      for (; i < end; i++) {
+        const s = stations[i];
+        const p = stationPrice(s.id, fuel, base);
+        all.push(p);
+        const ia   = isInArea(s.lat, s.lon);
+        const hot  = isHotspot(s);
+        if (ia) inArea++;
+        if (hot) hotCount++;
+
+        // Real name: prefer explicit name tag, fall back to brand, then operator
+        const stationName = s.tags.name || s.tags.brand || s.tags.operator || '';
+
+        const m = L.marker([s.lat, s.lon], { icon: makeIcon(p, stationName, ia, hot, base) });
+        m.bindPopup(() => makePopup(s, ia, hot), { maxWidth:240 });
+
+        // Tooltip shows the full untruncated name on hover
+        if (stationName) {
+          m.bindTooltip(stationName, { permanent:false, direction:'top', className:'gasly-tip' });
+        }
+
+        clusters.addLayer(m);
+      }
+      await sleep(0);
+    }
+    $('st-count').textContent = stations.length.toLocaleString();
+    $('st-area').textContent  = userLoc ? inArea.toLocaleString() : '—';
+    $('st-hot').textContent   = hotCount.toLocaleString();
+    $('st-cheap').textContent = `$${Math.min(...all).toFixed(2)}`;
+    $('st-dear').textContent  = `$${Math.max(...all).toFixed(2)}`;
+  }
+
+  function makePopup(s, ia, hot) {
+    const name  = s.tags.name || s.tags.brand || 'Gas Station';
+    const brand = s.tags.brand || '';
+    const addr  = [s.tags['addr:housenumber'],s.tags['addr:street'],s.tags['addr:city']].filter(Boolean).join(' ') || 'California';
+    const reg  = stationPrice(s.id,'regular', prices.regular);
+    const prem = stationPrice(s.id,'premium', prices.premium);
+    const dies = stationPrice(s.id,'diesel',  prices.diesel);
+    return `<div>
+      <div class="pop-name">${esc(name)}</div>
+      ${brand?`<span class="pop-brand">${esc(brand)}</span>`:''}
+      <div class="pop-grid">
+        <div class="pop-cell reg"><div class="pl">Regular</div><div class="pv">$${reg.toFixed(2)}</div></div>
+        <div class="pop-cell prem"><div class="pl">Premium</div><div class="pv">$${prem.toFixed(2)}</div></div>
+        <div class="pop-cell dies"><div class="pl">Diesel</div><div class="pv">$${dies.toFixed(2)}</div></div>
+      </div>
+      <div class="pop-addr">📍 ${esc(addr)}</div>
+      ${hot?'<div class="pop-hot">🔥 Popular hotspot station</div>':''}
+      ${ia?'<div class="pop-area">📍 Within your area</div>':''}
+    </div>`;
+  }
+
+  // ── icon helpers ─
+  function makeIcon(price, stationName, inArea, hot, base) {
+    const c      = priceColor(price, base ?? prices[fuel]);
+    const pLabel = `$${price.toFixed(2)}`;
+
+    // Truncate name to 13 chars so it fits comfortably in the bubble
+    const raw  = stationName || '';
+    const name = raw.length > 13 ? raw.slice(0, 12) + '…' : raw;
+    const hasName = name.length > 0;
+
+    // Dynamic width: wide enough for whichever is longer, name or price
+    const nameW  = hasName ? name.length * 5.8 + 18 : 0;
+    const priceW = pLabel.length * 8.2 + 14;
+    let w = Math.max(54, nameW, priceW);
+    if (inArea || hot) w = Math.max(w, 64);
+
+    // Taller bubble when name is present
+    const h      = hasName ? 44 : 30;
+    const rectH  = hasName ? 36 : 22;
+    const priceY = hasName ? 28 : 16;
+    const polyY1 = rectH + 1;
+    const polyY2 = h - 1;
+
+    let stroke = 'rgba(255,255,255,.45)'; let sw = 1.5; let glow = '';
+    let badge  = '';
+    const bx = w - 6;
+    if (hot) {
+      stroke='#f97316'; sw=2.2; glow='filter:drop-shadow(0 0 5px rgba(249,115,22,.8))';
+      badge=`<text x="${bx}" y="11" font-size="11" text-anchor="middle">🔥</text>`;
+    } else if (inArea) {
+      stroke='#4fc3f7'; sw=2.2; glow='filter:drop-shadow(0 0 5px rgba(79,195,247,.7))';
+      badge=`<text x="${bx}" y="11" font-size="11" text-anchor="middle">📍</text>`;
+    }
+
+    // Center price; shift left slightly when badge present
+    const pX = (hot || inArea) ? Math.max(w/2 - 5, 18) : w/2;
+
+    const nameRow = hasName
+      ? `<text x="${w/2}" y="12" text-anchor="middle" fill="rgba(255,255,255,.88)"
+             font-family="Arial,sans-serif" font-size="9" font-weight="700"
+             letter-spacing="0.3">${esc(name)}</text>
+         <line x1="4" y1="16" x2="${w-4}" y2="16" stroke="rgba(255,255,255,.18)" stroke-width="0.6"/>`
+      : '';
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="${glow}">
+      <rect x="1" y="1" width="${w-2}" height="${rectH}" rx="5" fill="${c}" stroke="${stroke}" stroke-width="${sw}"/>
+      ${nameRow}
+      <text x="${pX}" y="${priceY}" text-anchor="middle" fill="white"
+            font-family="Arial,sans-serif" font-weight="bold" font-size="12">${pLabel}</text>
+      ${badge}
+      <polygon points="${w/2-6},${polyY1} ${w/2+6},${polyY1} ${w/2},${polyY2}" fill="${c}"/>
+    </svg>`;
+
+    return L.divIcon({ html:svg, className:'', iconSize:[w,h], iconAnchor:[w/2,h-1], popupAnchor:[0,-h] });
+  }
+
+  function priceColor(p, base) {
+    // Thresholds are relative to the current fuel's CA average so
+    // green/orange/red always reflects cheap vs. mid vs. expensive
+    // within the actual spread of prices on the map.
+    const lo = base - 0.065;
+    const hi = base + 0.065;
+    if (p <= lo) return '#22c55e'; // green  — cheapest
+    if (p >= hi) return '#ef4444'; // red    — most expensive
+    return '#f97316';              // orange — middle
+  }
+
+  function stationPrice(id, fuelType, base) {
+    const seed = (id * 2654435761 + fuelType.charCodeAt(0)) >>> 0;
+    const r    = ((seed ^ (seed>>>16)) * 0x45d9f3b) >>> 0;
+    return Math.max(3.49, base + (r/4294967295 - 0.5) * 0.38);
+  }
+
+  function isHotspot(s) {
+    const brand = (s.tags.brand||s.tags.name||'').toLowerCase();
+    if (HOT_BRANDS.has(brand)) return true;
+    return ((s.id * 2654435761) >>> 0) % 100 < 9;
+  }
+
+  // ── location ─
+  function haversine(lat1,lon1,lat2,lon2) {
+    const R=3958.8, dL=((lat2-lat1)*Math.PI/180), dN=((lon2-lon1)*Math.PI/180);
+    const a=Math.sin(dL/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dN/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  function isInArea(lat,lon) {
+    if (!userLoc) return false;
+    return haversine(userLoc.lat, userLoc.lon, lat, lon) <= radius;
+  }
+
+  async function setLocation() {
+    const q = $('loc-input').value.trim();
+    if (!q) return;
+    $('loc-status').textContent = 'Searching…'; $('loc-status').className = 'loc-status';
+    try {
+      const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+' California')}&format=json&limit=1`, { headers:{'Accept-Language':'en'} });
+      const json = await res.json();
+      if (!json[0]) { $('loc-status').textContent = 'Location not found.'; return; }
+      placeArea(parseFloat(json[0].lat), parseFloat(json[0].lon), json[0].display_name);
+    } catch { $('loc-status').textContent = 'Search failed.'; }
+  }
+
+  function useGPS() {
+    if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+    $('loc-status').textContent = 'Getting GPS…'; $('loc-status').className = 'loc-status';
+    navigator.geolocation.getCurrentPosition(p => {
+      placeArea(p.coords.latitude, p.coords.longitude, 'Your GPS location');
+    }, () => { $('loc-status').textContent = 'GPS denied.'; });
+  }
+
+  async function placeArea(lat, lon, label) {
+    userLoc = { lat, lon };
+    radius  = parseInt($('radius-sel').value);
+    if (areaCircle)  { areaCircle.remove();  areaCircle=null; }
+    if (areaMarker)  { areaMarker.remove();  areaMarker=null; }
+    areaCircle = L.circle([lat,lon], {
+      radius: radius*1609.34,
+      color:'#4fc3f7', fillColor:'#4fc3f7', fillOpacity:.06, weight:2, dashArray:'6 4'
+    }).addTo(map);
+    areaMarker = L.marker([lat,lon], {
+      icon: L.divIcon({ html:`<div style="width:14px;height:14px;background:#4fc3f7;border:2px solid white;border-radius:50%;box-shadow:0 0 10px #4fc3f7"></div>`, className:'', iconSize:[14,14], iconAnchor:[7,7] })
+    }).addTo(map);
+    map.flyTo([lat,lon], 12, { duration:1.3 });
+    const shortLabel = label.split(',')[0];
+    $('loc-input').value = shortLabel;
+    $('loc-status').textContent = `📍 ${shortLabel} · ${radius}mi radius`;
+    $('loc-status').className = 'loc-status active';
+    Auth.saveLocation({ lat, lon, label: shortLabel, radius });
+    if (stations.length) {
+      show('loading'); setLoad('Updating area markers…', 40);
+      await renderMarkers();
+      hide('loading');
+    }
+  }
+
+  function updateRadius() {
+    radius = parseInt($('radius-sel').value);
+    if (userLoc) placeArea(userLoc.lat, userLoc.lon, $('loc-input').value);
+  }
+
+  function restoreLocation(loc) {
+    if (!loc) return;
+    $('loc-input').value = loc.label || '';
+    if (loc.radius) $('radius-sel').value = loc.radius;
+    placeArea(loc.lat, loc.lon, loc.label || 'Saved location');
+  }
+
+  // ── search ─
+  async function search() {
+    const q = $('s-inp').value.trim(); if (!q) return;
+    try {
+      const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+' California')}&format=json&limit=1`, { headers:{'Accept-Language':'en'} });
+      const json = await res.json();
+      if (json[0]) map.flyTo([parseFloat(json[0].lat),parseFloat(json[0].lon)], 13, { duration:1.2 });
+      else alert('Location not found in California.');
+    } catch { alert('Search failed.'); }
+  }
+
+  // ── fuel toggle ─
+  async function setFuel(f, btn) {
+    fuel = f;
+    document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    if (!stations.length) return;
+    show('loading'); setLoad(`Switching to ${f}…`, 40);
+    await sleep(30);
+    await renderMarkers();
+    hide('loading');
+  }
+
+  // ── refresh ─
+  async function refresh() {
+    const btn = $('ref-btn'); btn.disabled=true; btn.textContent='…';
+    prev = { ...prices };
+    await fetchEIA();
+    renderCards();
+    if (stations.length) {
+      show('loading'); setLoad('Refreshing markers…', 40);
+      await renderMarkers();
+      hide('loading');
+    }
+    btn.disabled=false; btn.textContent='↻ Refresh';
+  }
+
+  async function autoRefresh() {
+    prev = { ...prices };
+    await fetchEIA();
+    renderCards();
+    if (stations.length) await renderMarkers();
+  }
+
+  // ── EIA key prompt ─
+  function promptKey() {
+    const key = prompt('Enter your EIA API key for live prices (free at eia.gov/opendata/register.php)\n\nOr press Cancel to use demo data:');
+    if (key) { eiaKey = key.trim(); localStorage.setItem('eia_key',eiaKey); }
+  }
+
+  init();
+  return { setFuel, refresh, reloadStations, search, setLocation, useGPS, updateRadius, restoreLocation };
+})();
+</script>
+</body>
+</html>
