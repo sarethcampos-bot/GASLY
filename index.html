@@ -222,6 +222,22 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
 .m-switch a{color:var(--brand);cursor:pointer;text-decoration:underline}
 .m-divider{border:none;border-top:1px solid var(--border);margin:16px 0}
 
+/* ── ACCOUNT MODAL ── */
+.acc-tabs{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border)}
+.acc-tab{padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text3);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .16s}
+.acc-tab.active{color:var(--brand);border-bottom-color:var(--brand)}
+.acc-tab:hover:not(.active){color:var(--text2)}
+.acc-page{display:none}.acc-page.active{display:block}
+.acc-avatar{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#b45309,var(--brand));display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#fff;margin:0 auto 16px}
+.acc-tier-block{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.acc-tier-icon{font-size:26px}
+.acc-tier-info .atl{font-size:14px;font-weight:800;color:var(--text)}
+.acc-tier-info .ats{font-size:11px;color:var(--text3);margin-top:2px}
+.acc-perks{list-style:none;margin-bottom:16px}
+.acc-perks li{font-size:12px;color:var(--text2);padding:5px 0;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.03)}
+.acc-perks li .ck.y{color:var(--green)}.acc-perks li .ck.n{color:var(--text3)}
+.acc-success{color:var(--green);font-size:11px;margin-top:6px;min-height:16px}
+
 /* ── PRICING MODAL ── */
 #pricing-modal .modal{max-width:700px;padding:32px}
 .pricing-title{text-align:center;font-size:26px;font-weight:900;color:var(--text);margin-bottom:6px}
@@ -392,6 +408,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
   </div>
   <div id="nav-user" style="display:none;align-items:center;gap:8px">
     <button class="nav-btn admin-btn" id="nav-admin-btn" style="display:none" onclick="Admin.show()">⚙ Admin</button>
+    <button class="nav-btn" onclick="Account.show()">My Account</button>
     <div id="nav-user-info">
       <span id="nav-name"></span>
       <span class="tier-badge" id="nav-tier"></span>
@@ -428,6 +445,45 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-seri
     <div class="m-err" id="rg-err"></div>
     <button class="m-btn" onclick="Auth.register()">Create Account</button>
     <div class="m-switch">Already have an account? <a onclick="Auth.openLogin()">Log in</a></div>
+  </div>
+</div>
+
+<!-- ACCOUNT MODAL -->
+<div class="overlay hidden" id="account-overlay">
+  <div class="modal" style="max-width:440px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;font-size:18px">My Account</h2>
+      <button onclick="Account.hide()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div class="acc-tabs">
+      <button class="acc-tab active" onclick="Account.tab('profile',this)">Profile</button>
+      <button class="acc-tab" onclick="Account.tab('membership',this)">Membership</button>
+    </div>
+
+    <!-- Profile Tab -->
+    <div class="acc-page active" id="acc-profile">
+      <div class="acc-avatar" id="acc-avatar">?</div>
+      <div class="m-field"><label>Full Name</label><input type="text" id="acc-name" placeholder="Your name"/></div>
+      <div class="m-field"><label>Email</label><input type="email" id="acc-email" disabled style="opacity:.45;cursor:not-allowed"/></div>
+      <div class="m-err" id="acc-name-err"></div>
+      <button class="m-btn" onclick="Account.saveName()">Save Name</button>
+      <hr class="m-divider"/>
+      <p style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px">Change Password</p>
+      <div class="m-field"><label>Current Password</label><input type="password" id="acc-old-pass" placeholder="••••••••"/></div>
+      <div class="m-field"><label>New Password</label><input type="password" id="acc-new-pass" placeholder="At least 6 characters"/></div>
+      <div class="m-field"><label>Confirm New Password</label><input type="password" id="acc-new-pass2" placeholder="Repeat new password"/></div>
+      <div class="m-err" id="acc-pass-err"></div>
+      <button class="m-btn" onclick="Account.changePassword()">Change Password</button>
+    </div>
+
+    <!-- Membership Tab -->
+    <div class="acc-page" id="acc-membership">
+      <div class="acc-tier-block" id="acc-tier-block"></div>
+      <p style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Your Plan Includes</p>
+      <ul class="acc-perks" id="acc-perks"></ul>
+      <button class="m-btn" id="acc-upgrade-btn" onclick="Account.upgrade()">Upgrade Plan</button>
+      <p style="font-size:10px;color:var(--text3);text-align:center;margin-top:12px" id="acc-member-since"></p>
+    </div>
   </div>
 </div>
 
@@ -791,6 +847,93 @@ const Pricing = (() => {
   }
 
   return { show, hide: ()=>hide('pricing-modal'), upgrade, getPrices };
+})();
+
+// ── ACCOUNT ─────────────────────────────────────────────
+const Account = (() => {
+  const PERKS = {
+    free:    [{y:1,t:'California gas map'},{y:1,t:'State average prices'},{y:1,t:'All station locations'},{y:1,t:'Station popups'},{y:0,t:'My Area radius view'},{y:0,t:'Hotspot indicators'},{y:0,t:'Price alerts'}],
+    pro:     [{y:1,t:'Everything in Free'},{y:1,t:'My Area radius view'},{y:1,t:'Hotspot indicators 🔥'},{y:1,t:'GPS location tracking'},{y:1,t:'Price alerts (soon)'},{y:0,t:'Price history charts'},{y:0,t:'Multi-location tracking'}],
+    premium: [{y:1,t:'Everything in Pro'},{y:1,t:'Price history charts'},{y:1,t:'Multi-location tracking'},{y:1,t:'Data export (CSV)'},{y:1,t:'Priority support'},{y:1,t:'Early feature access'}],
+    admin:   [{y:1,t:'Full admin console'},{y:1,t:'All features unlocked'},{y:1,t:'User management'},{y:1,t:'Pricing control'},{y:1,t:'Platform analytics'}],
+  };
+  const ICONS  = {free:'⛽',pro:'🔵',premium:'🟠',admin:'⚙️'};
+  const LABELS = {free:'Free',pro:'Pro',premium:'Premium',admin:'Admin'};
+  const DESC   = {free:'Basic access — view the map and prices',pro:'Location tracking & hotspot detection',premium:'Full access including data export',admin:'Full platform control'};
+
+  function openModal() {
+    const s = Auth.getSession(); if (!s) return;
+    const u = Auth.getUsers().find(x => x.id === s.id);
+    // populate profile
+    $('acc-avatar').textContent = s.name.charAt(0).toUpperCase();
+    $('acc-name').value  = s.name;
+    $('acc-email').value = s.email;
+    $('acc-name-err').textContent = '';
+    $('acc-pass-err').textContent = '';
+    ['acc-old-pass','acc-new-pass','acc-new-pass2'].forEach(i => $(i).value = '');
+    // populate membership
+    const tier = Auth.isAdmin() ? 'admin' : (s.tier || 'free');
+    $('acc-tier-block').innerHTML = `
+      <div class="acc-tier-icon">${ICONS[tier]||'⛽'}</div>
+      <div class="acc-tier-info"><div class="atl">${LABELS[tier]} Plan</div><div class="ats">${DESC[tier]||''}</div></div>
+      <span class="tier-badge tb-${tier}" style="margin-left:auto">${LABELS[tier]}</span>`;
+    $('acc-perks').innerHTML = (PERKS[tier]||PERKS.free).map(p =>
+      `<li><span class="ck ${p.y?'y':'n'}">${p.y?'✓':'✗'}</span>${p.t}</li>`).join('');
+    $('acc-upgrade-btn').style.display = (tier==='premium'||tier==='admin') ? 'none' : 'block';
+    if (u?.createdAt) $('acc-member-since').textContent = `Member since ${new Date(u.createdAt).toLocaleDateString('en-US',{month:'long',year:'numeric'})}`;
+    // reset to profile tab
+    document.querySelectorAll('.acc-tab').forEach((b,i)=>b.classList.toggle('active',i===0));
+    document.querySelectorAll('.acc-page').forEach((p,i)=>p.classList.toggle('active',i===0));
+    show('account-overlay');
+  }
+
+  function tab(name, btn) {
+    document.querySelectorAll('.acc-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.acc-page').forEach(p=>p.classList.remove('active'));
+    $('acc-'+name).classList.add('active');
+  }
+
+  async function saveName() {
+    const s = Auth.getSession(); if (!s) return;
+    const name = $('acc-name').value.trim();
+    const err  = $('acc-name-err');
+    err.style.color = 'var(--red)'; err.textContent = '';
+    if (!name) { err.textContent = 'Name cannot be empty.'; return; }
+    const users = Auth.getUsers();
+    const u = users.find(x => x.id === s.id);
+    if (u) { u.name = name; localStorage.setItem('gasly_users', JSON.stringify(users)); }
+    s.name = name; localStorage.setItem('gasly_session', JSON.stringify(s));
+    Auth.updateNav();
+    $('acc-avatar').textContent = name.charAt(0).toUpperCase();
+    err.style.color = 'var(--green)'; err.textContent = '✓ Name updated!';
+    setTimeout(()=>{ err.textContent=''; }, 2500);
+  }
+
+  async function changePassword() {
+    const s = Auth.getSession(); if (!s) return;
+    const oldP  = $('acc-old-pass').value;
+    const newP  = $('acc-new-pass').value;
+    const newP2 = $('acc-new-pass2').value;
+    const err   = $('acc-pass-err');
+    err.style.color = 'var(--red)'; err.textContent = '';
+    if (!oldP||!newP||!newP2) { err.textContent = 'All fields required.'; return; }
+    if (newP.length < 6)      { err.textContent = 'New password must be at least 6 characters.'; return; }
+    if (newP !== newP2)        { err.textContent = 'New passwords do not match.'; return; }
+    const oldHash = await sha256(oldP);
+    const users = Auth.getUsers();
+    const u = users.find(x => x.id === s.id);
+    if (!u || u.hash !== oldHash) { err.textContent = 'Current password is incorrect.'; return; }
+    u.hash = await sha256(newP);
+    localStorage.setItem('gasly_users', JSON.stringify(users));
+    ['acc-old-pass','acc-new-pass','acc-new-pass2'].forEach(i=>$(i).value='');
+    err.style.color = 'var(--green)'; err.textContent = '✓ Password changed!';
+    setTimeout(()=>{ err.textContent=''; }, 2500);
+  }
+
+  function upgrade() { hide('account-overlay'); Pricing.show(); }
+
+  return { show:openModal, hide:()=>hide('account-overlay'), tab, saveName, changePassword, upgrade };
 })();
 
 // ── ADMIN ────────────────────────────────────────────────
